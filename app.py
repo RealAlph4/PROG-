@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import tkinter.messagebox as messagebox
 
-from crud.cliente_crud import crear_cliente, obtener_clientes
+from crud.cliente_crud import crear_cliente, obtener_clientes, actualizar_cliente, eliminar_cliente
 from crud.ingrediente_crud import crear_ingrediente, obtener_ingredientes
 from crud.menu_crud import crear_menu, obtener_menus
 from crud.pedido_crud import crear_pedido, obtener_pedidos
@@ -28,31 +28,112 @@ class App(ctk.CTk):
         self.init_menus_tab()
         self.init_pedidos_tab()
 
+    # ---------------- Panel de CLIENTES Mejorado ---------------------
     def init_clientes_tab(self):
         self.entry_nombre = ctk.CTkEntry(self.clientes_tab, placeholder_text="Nombre")
         self.entry_nombre.pack(pady=5)
         self.entry_correo = ctk.CTkEntry(self.clientes_tab, placeholder_text="Correo")
         self.entry_correo.pack(pady=5)
-        ctk.CTkButton(self.clientes_tab, text="Agregar Cliente", command=self.agregar_cliente).pack(pady=5)
-        ctk.CTkButton(self.clientes_tab, text="Cargar Lista", command=self.cargar_clientes).pack(pady=5)
+
+        btn_frame = ctk.CTkFrame(self.clientes_tab)
+        btn_frame.pack(pady=5)
+        ctk.CTkButton(btn_frame, text="Agregar Cliente", command=self.agregar_cliente).grid(row=0, column=0, padx=5)
+        ctk.CTkButton(btn_frame, text="Editar Cliente", command=self.editar_cliente).grid(row=0, column=1, padx=5)
+        ctk.CTkButton(btn_frame, text="Eliminar Cliente", command=self.eliminar_cliente).grid(row=0, column=2, padx=5)
+        ctk.CTkButton(btn_frame, text="Cargar Lista", command=self.cargar_clientes).grid(row=0, column=3, padx=5)
+
         self.lista_clientes = ctk.CTkTextbox(self.clientes_tab, height=250)
-        self.lista_clientes.pack(pady=10)
+        self.lista_clientes.pack(pady=10, fill="x", padx=5)
+        self.lista_clientes.configure(state="normal")
+        self.lista_clientes.bind("<ButtonRelease-1>", self.seleccionar_cliente_evento)
+
+        # Para identificar el cliente seleccionado
+        self.cliente_seleccionado_id = None
+
+        self.cargar_clientes()
+
+    def cargar_clientes(self):
+        self.clientes = obtener_clientes()
+        self.lista_clientes.configure(state="normal")
+        self.lista_clientes.delete("0.0", "end")
+        for c in self.clientes:
+            self.lista_clientes.insert("end", f"{c.id}: {c.nombre} - {c.correo}\n")
+        self.lista_clientes.configure(state="disabled")
+        self.cliente_seleccionado_id = None
+        self.entry_nombre.delete(0, "end")
+        self.entry_correo.delete(0, "end")
+
+    def seleccionar_cliente_evento(self, event):
+        index = self.lista_clientes.index(f"@{event.x},{event.y}")
+        linea = int(float(index))
+        texto = self.lista_clientes.get(f"{linea}.0", f"{linea}.end").strip()
+        if texto:
+            try:
+                id_cliente = int(texto.split(":")[0])
+            except Exception:
+                id_cliente = None
+            # Rellenar los campos si el id es válido
+            if id_cliente:
+                cliente = next((c for c in self.clientes if c.id == id_cliente), None)
+                if cliente:
+                    self.entry_nombre.delete(0, "end")
+                    self.entry_nombre.insert(0, cliente.nombre)
+                    self.entry_correo.delete(0, "end")
+                    self.entry_correo.insert(0, cliente.correo)
+                    self.cliente_seleccionado_id = cliente.id
 
     def agregar_cliente(self):
-        nombre = self.entry_nombre.get()
-        correo = self.entry_correo.get()
+        nombre = self.entry_nombre.get().strip()
+        correo = self.entry_correo.get().strip().lower()
+        if not nombre or not correo:
+            messagebox.showerror("Error", "Debe ingresar nombre y correo.")
+            return
+        # Validación unicidad correo
+        clientes = obtener_clientes()
+        if any(c.correo.lower() == correo for c in clientes):
+            messagebox.showerror("Error", "El correo ya está registrado.")
+            return
         if crear_cliente(nombre, correo):
             messagebox.showinfo("Éxito", "Cliente agregado.")
             self.cargar_clientes()
         else:
-            messagebox.showwarning("Error", "Correo ya registrado.")
+            messagebox.showwarning("Error", "No se pudo agregar el cliente.")
 
-    def cargar_clientes(self):
+    def editar_cliente(self):
+        if self.cliente_seleccionado_id is None:
+            messagebox.showwarning("Aviso", "Seleccione un cliente en la lista.")
+            return
+        nombre = self.entry_nombre.get().strip()
+        correo = self.entry_correo.get().strip().lower()
+        if not nombre or not correo:
+            messagebox.showerror("Error", "Debe ingresar nombre y correo.")
+            return
+        # Validación unicidad correo (excepto a sí mismo)
         clientes = obtener_clientes()
-        self.lista_clientes.delete("0.0", "end")
         for c in clientes:
-            self.lista_clientes.insert("end", f"{c.id}: {c.nombre} - {c.correo}\n")
+            if c.correo.lower() == correo and c.id != self.cliente_seleccionado_id:
+                messagebox.showerror("Error", "El correo ya está registrado a otro cliente.")
+                return
+        if actualizar_cliente(self.cliente_seleccionado_id, nombre, correo):
+            messagebox.showinfo("Éxito", "Cliente actualizado.")
+            self.cargar_clientes()
+        else:
+            messagebox.showwarning("Error", "No se pudo actualizar el cliente.")
 
+    def eliminar_cliente(self):
+        if self.cliente_seleccionado_id is None:
+            messagebox.showwarning("Aviso", "Seleccione un cliente en la lista.")
+            return
+        confirm = messagebox.askyesno("Confirmar", "¿Seguro que quiere eliminar este cliente?\nEsta acción no se puede deshacer.")
+        if not confirm:
+            return
+        if eliminar_cliente(self.cliente_seleccionado_id):
+            messagebox.showinfo("Éxito", "Cliente eliminado.")
+            self.cargar_clientes()
+        else:
+            messagebox.showwarning("Error", "No se pudo eliminar el cliente (puede tener pedidos asociados).")
+
+    # ----------------- INGREDIENTES, MENÚS y PEDIDOS -----------------
     def init_ingredientes_tab(self):
         self.ing_nombre = ctk.CTkEntry(self.ingredientes_tab, placeholder_text="Nombre")
         self.ing_nombre.pack(pady=5)
@@ -101,13 +182,12 @@ class App(ctk.CTk):
 
     def agregar_menu(self):
         nombre = self.menu_nombre.get()
-        descripcion = self.menu_desc.get()
-        if nombre and descripcion:
-            crear_menu(nombre, descripcion)
+        desc = self.menu_desc.get()
+        if crear_menu(nombre, desc):
             messagebox.showinfo("Éxito", "Menú agregado.")
             self.cargar_menus()
         else:
-            messagebox.showwarning("Error", "Campos incompletos.")
+            messagebox.showwarning("Error", "No se pudo agregar menú.")
 
     def cargar_menus(self):
         menus = obtener_menus()
