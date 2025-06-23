@@ -8,8 +8,20 @@ from crud.ingrediente_crud import crear_ingrediente, obtener_ingredientes
 from crud.menu_crud import crear_menu, obtener_menus
 from crud.pedido_crud import crear_pedido, obtener_pedidos
 
+# BUG FIX: Remove backslashes from string literals in set_appearance_mode and set_default_color_theme
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
+
+
+def parse_menu_price(descripcion: str) -> float:
+    """Intenta extraer el precio (float) desde la descripción del menú.
+    Si no encuentra '|precio', devuelve 0."""
+    if "|" in descripcion:
+        try:
+            return float(descripcion.split("|")[-1])
+        except ValueError:
+            return 0.0
+    return 0.0
 
 
 class App(ctk.CTk):
@@ -45,7 +57,6 @@ class App(ctk.CTk):
         ctk.CTkButton(btn_frame, text="Eliminar Cliente", command=self.eliminar_cliente).grid(row=0, column=2, padx=5)
         ctk.CTkButton(btn_frame, text="Cargar Lista", command=self.cargar_clientes).grid(row=0, column=3, padx=5)
 
-        # Treeview + Scrollbar
         tree_frame = ctk.CTkFrame(self.clientes_tab)
         tree_frame.pack(pady=10, fill="both", expand=True)
 
@@ -195,6 +206,8 @@ class App(ctk.CTk):
         self.menu_nombre.pack(pady=5)
         self.menu_desc = ctk.CTkEntry(self.menus_tab, placeholder_text="Descripción")
         self.menu_desc.pack(pady=5)
+        self.menu_precio = ctk.CTkEntry(self.menus_tab, placeholder_text="Precio ($)")
+        self.menu_precio.pack(pady=5)
 
         btn_frame = ctk.CTkFrame(self.menus_tab)
         btn_frame.pack(pady=5)
@@ -204,8 +217,8 @@ class App(ctk.CTk):
         tree_frame = ctk.CTkFrame(self.menus_tab)
         tree_frame.pack(pady=10, fill="both", expand=True)
 
-        self.tree_menus = ttk.Treeview(tree_frame, columns=("id", "nombre", "descripcion"), show="headings")
-        for col, header in zip(("id", "nombre", "descripcion"), ("ID", "Nombre", "Descripción")):
+        self.tree_menus = ttk.Treeview(tree_frame, columns=("id", "nombre", "descripcion", "precio"), show="headings")
+        for col, header in zip(("id", "nombre", "descripcion", "precio"), ("ID", "Nombre", "Descripción", "Precio")):
             self.tree_menus.heading(col, text=header)
             self.tree_menus.column(col, anchor="center")
         vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree_menus.yview)
@@ -218,7 +231,14 @@ class App(ctk.CTk):
     def agregar_menu(self):
         nombre = self.menu_nombre.get()
         desc = self.menu_desc.get()
-        if crear_menu(nombre, desc):
+        try:
+            precio = float(self.menu_precio.get())
+        except ValueError:
+            messagebox.showerror("Error", "Precio inválido.")
+            return
+        # Guardamos precio concatenado en descripción por compatibilidad si el CRUD no soporta campo precio
+        desc_con_precio = f"{desc}|{precio}"
+        if crear_menu(nombre, desc_con_precio):
             messagebox.showinfo("Éxito", "Menú agregado.")
             self.cargar_menus()
         else:
@@ -229,47 +249,127 @@ class App(ctk.CTk):
         for item in self.tree_menus.get_children():
             self.tree_menus.delete(item)
         for m in menus:
-            self.tree_menus.insert('', 'end', iid=m.id, values=(m.id, m.nombre, m.descripcion))
+            precio = parse_menu_price(m.descripcion)
+            desc = m.descripcion.split("|")[0] if "|" in m.descripcion else m.descripcion
+            self.tree_menus.insert('', 'end', iid=m.id, values=(m.id, m.nombre, desc, precio))
 
     # ---------------------------  PEDIDOS  ---------------------------
     def init_pedidos_tab(self):
-        self.ped_cliente = ctk.CTkEntry(self.pedidos_tab, placeholder_text="ID Cliente")
-        self.ped_cliente.pack(pady=5)
-        self.ped_desc = ctk.CTkEntry(self.pedidos_tab, placeholder_text="Descripción del Pedido")
-        self.ped_desc.pack(pady=5)
-        self.ped_total = ctk.CTkEntry(self.pedidos_tab, placeholder_text="Total ($)")
-        self.ped_total.pack(pady=5)
-        self.ped_cant = ctk.CTkEntry(self.pedidos_tab, placeholder_text="Cantidad de Menús")
-        self.ped_cant.pack(pady=5)
+        # Cliente selector
+        client_frame = ctk.CTkFrame(self.pedidos_tab)
+        client_frame.pack(pady=5)
+        ctk.CTkLabel(client_frame, text="Cliente").grid(row=0, column=0, padx=5)
+        self.combo_clientes = ttk.Combobox(client_frame, state="readonly")
+        self.combo_clientes.grid(row=0, column=1, padx=5)
 
-        btn_frame = ctk.CTkFrame(self.pedidos_tab)
-        btn_frame.pack(pady=5)
-        ctk.CTkButton(btn_frame, text="Guardar Pedido", command=self.guardar_pedido).grid(row=0, column=0, padx=5)
-        ctk.CTkButton(btn_frame, text="Ver Pedidos", command=self.ver_pedidos).grid(row=0, column=1, padx=5)
+        # Menú selector
+        menu_frame = ctk.CTkFrame(self.pedidos_tab)
+        menu_frame.pack(pady=5)
+        ctk.CTkLabel(menu_frame, text="Menú").grid(row=0, column=0, padx=5)
+        self.combo_menus = ttk.Combobox(menu_frame, state="readonly")
+        self.combo_menus.grid(row=0, column=1, padx=5)
+        self.entry_cant = ctk.CTkEntry(menu_frame, placeholder_text="Cantidad", width=80)
+        self.entry_cant.grid(row=0, column=2, padx=5)
+        ctk.CTkButton(menu_frame, text="Añadir Item", command=self.anadir_item).grid(row=0, column=3, padx=5)
 
+        # Lista temporal de items del pedido
         tree_frame = ctk.CTkFrame(self.pedidos_tab)
         tree_frame.pack(pady=10, fill="both", expand=True)
+        self.tree_items = ttk.Treeview(tree_frame, columns=("menu", "cantidad", "precio", "subtotal"), show="headings")
+        for col, header in zip(("menu", "cantidad", "precio", "subtotal"), ("Menú", "Cant", "Precio", "Subtotal")):
+            self.tree_items.heading(col, text=header)
+            self.tree_items.column(col, anchor="center")
+        vsb_items = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree_items.yview)
+        self.tree_items.configure(yscrollcommand=vsb_items.set)
+        self.tree_items.pack(side="left", fill="both", expand=True)
+        vsb_items.pack(side="right", fill="y")
 
-        self.tree_pedidos = ttk.Treeview(tree_frame, columns=("id", "cliente", "total", "fecha", "descripcion"), show="headings")
+        # Total y acciones
+        total_frame = ctk.CTkFrame(self.pedidos_tab)
+        total_frame.pack(pady=5)
+        self.label_total = ctk.CTkLabel(total_frame, text="Total: $0", font=(None, 16, "bold"))
+        self.label_total.grid(row=0, column=0, padx=10)
+        ctk.CTkButton(total_frame, text="Guardar Pedido", command=self.guardar_pedido).grid(row=0, column=1, padx=5)
+        ctk.CTkButton(total_frame, text="Ver Pedidos", command=self.ver_pedidos).grid(row=0, column=2, padx=5)
+
+        # Treeview pedidos históricos
+        history_frame = ctk.CTkFrame(self.pedidos_tab)
+        history_frame.pack(pady=10, fill="both", expand=True)
+        self.tree_pedidos = ttk.Treeview(history_frame, columns=("id", "cliente", "total", "fecha", "descripcion"), show="headings")
         for col, header in zip(("id", "cliente", "total", "fecha", "descripcion"), ("ID", "Cliente", "Total", "Fecha", "Descripción")):
             self.tree_pedidos.heading(col, text=header)
             self.tree_pedidos.column(col, anchor="center")
-        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree_pedidos.yview)
+        vsb = ttk.Scrollbar(history_frame, orient="vertical", command=self.tree_pedidos.yview)
         self.tree_pedidos.configure(yscrollcommand=vsb.set)
         self.tree_pedidos.pack(side="left", fill="both", expand=True)
         vsb.pack(side="right", fill="y")
 
-    def guardar_pedido(self):
+        # Datos auxiliares
+        self.carrito = []  # [(menu_id, nombre, cant, precio, subtotal)]
+        self.cargar_comboboxes()
+
+    def cargar_comboboxes(self):
+        # Clientes
+        self.clientes_cb_source = obtener_clientes()
+        self.combo_clientes['values'] = [f"{c.id} - {c.nombre}" for c in self.clientes_cb_source]
+        if self.clientes_cb_source:
+            self.combo_clientes.current(0)
+        # Menús
+        self.menus_cb_source = obtener_menus()
+        self.combo_menus['values'] = [f"{m.id} - {m.nombre}" for m in self.menus_cb_source]
+        if self.menus_cb_source:
+            self.combo_menus.current(0)
+
+    def anadir_item(self):
+        if not self.combo_menus.get():
+            messagebox.showwarning("Aviso", "Debe seleccionar un menú")
+            return
         try:
-            cliente_id = int(self.ped_cliente.get())
-            total = float(self.ped_total.get())
-            cantidad = int(self.ped_cant.get())
-            descripcion = self.ped_desc.get()
-            crear_pedido(cliente_id, descripcion, total, cantidad)
-            messagebox.showinfo("Éxito", "Pedido guardado.")
+            cantidad = int(self.entry_cant.get())
+            if cantidad <= 0:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror("Error", "Cantidad inválida")
+            return
+        # Obtener menú seleccionado
+        idx = self.combo_menus.current()
+        menu = self.menus_cb_source[idx]
+        precio = parse_menu_price(menu.descripcion)
+        subtotal = precio * cantidad
+        self.carrito.append((menu.id, menu.nombre, cantidad, precio, subtotal))
+        self.tree_items.insert('', 'end', values=(menu.nombre, cantidad, precio, subtotal))
+        self.actualizar_total()
+        # Limpiar cantidad
+        self.entry_cant.delete(0, 'end')
+
+    def actualizar_total(self):
+        total = sum(item[4] for item in self.carrito)
+        self.label_total.configure(text=f"Total: ${total}")
+        return total
+
+    def guardar_pedido(self):
+        if not self.combo_clientes.get():
+            messagebox.showwarning("Aviso", "Seleccione un cliente")
+            return
+        if not self.carrito:
+            messagebox.showwarning("Aviso", "Añada items al pedido")
+            return
+        cliente_idx = self.combo_clientes.current()
+        cliente = self.clientes_cb_source[cliente_idx]
+
+        total = self.actualizar_total()
+        descripcion = ", ".join([f"{cant}x {name}" for _, name, cant, _, _ in self.carrito])
+        try:
+            crear_pedido(cliente.id, descripcion, total, sum(item[2] for item in self.carrito))
+            messagebox.showinfo("Éxito", "Pedido guardado")
+            # Reset carrito e UI
+            self.carrito.clear()
+            for item in self.tree_items.get_children():
+                self.tree_items.delete(item)
+            self.actualizar_total()
             self.ver_pedidos()
-        except:
-            messagebox.showerror("Error", "Verifica los campos.")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo guardar pedido: {e}")
 
     def ver_pedidos(self):
         pedidos = obtener_pedidos()
