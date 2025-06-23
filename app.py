@@ -44,7 +44,6 @@ class App(ctk.CTk):
         ctk.CTkButton(btn_frame, text="Agregar Cliente", command=self.agregar_cliente).grid(row=0, column=0, padx=5)
         ctk.CTkButton(btn_frame, text="Editar Cliente", command=self.editar_cliente).grid(row=0, column=1, padx=5)
         ctk.CTkButton(btn_frame, text="Eliminar Cliente", command=self.eliminar_cliente).grid(row=0, column=2, padx=5)
-        ctk.CTkButton(btn_frame, text="Cargar Lista", command=self.cargar_clientes).grid(row=0, column=3, padx=5)
 
         tree_frame = ctk.CTkFrame(self.clientes_tab)
         tree_frame.pack(pady=10, fill="both", expand=True)
@@ -122,8 +121,6 @@ class App(ctk.CTk):
 
         btn = ctk.CTkButton(self.ingredientes_tab, text="Agregar Ingrediente", command=self.agregar_ingrediente)
         btn.pack(pady=5)
-        ctk.CTkButton(self.ingredientes_tab, text="Cargar Ingredientes", command=self.cargar_ingredientes).pack(pady=5)
-
         frame = ctk.CTkFrame(self.ingredientes_tab); frame.pack(expand=True, fill="both", pady=10)
         self.tree_ingredientes = ttk.Treeview(frame, columns=("id","nombre","tipo","cantidad","unidad"), show="headings")
         for col,hdr in zip(("id","nombre","tipo","cantidad","unidad"),("ID","Nombre","Tipo","Cant","Unidad")):
@@ -183,7 +180,6 @@ class App(ctk.CTk):
         # Botones
         btn_frame = ctk.CTkFrame(self.menus_tab); btn_frame.pack(pady=5)
         ctk.CTkButton(btn_frame, text="Crear Menú", command=self.crear_menu_receta).grid(row=0,column=0,padx=5)
-        ctk.CTkButton(btn_frame, text="Cargar Menús", command=self.cargar_menus).grid(row=0,column=1,padx=5)
         ctk.CTkButton(btn_frame, text="Limpiar Receta", command=self.limpiar_receta).grid(row=0,column=2,padx=5)
 
         # Lista de menús existentes
