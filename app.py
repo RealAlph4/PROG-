@@ -1,34 +1,23 @@
+
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import ttk
 import tkinter.messagebox as messagebox
+import json
 
 from crud.cliente_crud import crear_cliente, obtener_clientes, actualizar_cliente, eliminar_cliente
 from crud.ingrediente_crud import crear_ingrediente, obtener_ingredientes
 from crud.menu_crud import crear_menu, obtener_menus
 from crud.pedido_crud import crear_pedido, obtener_pedidos
 
-# BUG FIX: Remove backslashes from string literals in set_appearance_mode and set_default_color_theme
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
-
-
-def parse_menu_price(descripcion: str) -> float:
-    """Intenta extraer el precio (float) desde la descripción del menú.
-    Si no encuentra '|precio', devuelve 0."""
-    if "|" in descripcion:
-        try:
-            return float(descripcion.split("|")[-1])
-        except ValueError:
-            return 0.0
-    return 0.0
-
 
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Sistema de Gestión de Restaurante")
-        self.geometry("900x700")
+        self.geometry("1000x750")
 
         self.tabview = ctk.CTkTabview(self)
         self.tabview.pack(expand=True, fill="both")
@@ -43,7 +32,7 @@ class App(ctk.CTk):
         self.init_menus_tab()
         self.init_pedidos_tab()
 
-    # ---------------------------  CLIENTES  ---------------------------
+    # -------- CLIENTES (igual que antes, recortado para brevedad) -----
     def init_clientes_tab(self):
         self.entry_nombre = ctk.CTkEntry(self.clientes_tab, placeholder_text="Nombre")
         self.entry_nombre.pack(pady=5)
@@ -59,95 +48,68 @@ class App(ctk.CTk):
 
         tree_frame = ctk.CTkFrame(self.clientes_tab)
         tree_frame.pack(pady=10, fill="both", expand=True)
-
-        self.tree_clientes = ttk.Treeview(tree_frame, columns=("id", "nombre", "correo"), show="headings")
-        for col, header in zip(("id", "nombre", "correo"), ("ID", "Nombre", "Correo")):
-            self.tree_clientes.heading(col, text=header)
+        self.tree_clientes = ttk.Treeview(tree_frame, columns=("id","nombre","correo"), show="headings")
+        for col, hdr in zip(("id","nombre","correo"),("ID","Nombre","Correo")):
+            self.tree_clientes.heading(col, text=hdr)
             self.tree_clientes.column(col, anchor="center")
         vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree_clientes.yview)
         self.tree_clientes.configure(yscrollcommand=vsb.set)
-
         self.tree_clientes.pack(side="left", fill="both", expand=True)
         vsb.pack(side="right", fill="y")
-
         self.tree_clientes.bind("<<TreeviewSelect>>", self.seleccionar_cliente_evento)
-
         self.cliente_seleccionado_id = None
         self.cargar_clientes()
 
     def cargar_clientes(self):
         self.clientes = obtener_clientes()
-        for item in self.tree_clientes.get_children():
-            self.tree_clientes.delete(item)
+        for i in self.tree_clientes.get_children():
+            self.tree_clientes.delete(i)
         for c in self.clientes:
             self.tree_clientes.insert('', 'end', iid=c.id, values=(c.id, c.nombre, c.correo))
-        self.cliente_seleccionado_id = None
-        self.entry_nombre.delete(0, "end")
-        self.entry_correo.delete(0, "end")
+        self.cliente_seleccionado_id=None
+        self.entry_nombre.delete(0,'end')
+        self.entry_correo.delete(0,'end')
 
-    def seleccionar_cliente_evento(self, event):
-        selected = self.tree_clientes.selection()
-        if not selected:
-            return
-        item_id = int(selected[0])
-        cliente = next((c for c in self.clientes if c.id == item_id), None)
-        if cliente:
-            self.entry_nombre.delete(0, "end")
-            self.entry_nombre.insert(0, cliente.nombre)
-            self.entry_correo.delete(0, "end")
-            self.entry_correo.insert(0, cliente.correo)
-            self.cliente_seleccionado_id = cliente.id
+    def seleccionar_cliente_evento(self,event):
+        sel = self.tree_clientes.selection()
+        if not sel: return
+        cid = int(sel[0])
+        cli = next((c for c in self.clientes if c.id==cid),None)
+        if cli:
+            self.entry_nombre.delete(0,'end'); self.entry_nombre.insert(0,cli.nombre)
+            self.entry_correo.delete(0,'end'); self.entry_correo.insert(0,cli.correo)
+            self.cliente_seleccionado_id = cli.id
 
     def agregar_cliente(self):
-        nombre = self.entry_nombre.get().strip()
-        correo = self.entry_correo.get().strip().lower()
-        if not nombre or not correo:
-            messagebox.showerror("Error", "Debe ingresar nombre y correo.")
-            return
-        clientes = obtener_clientes()
-        if any(c.correo.lower() == correo for c in clientes):
-            messagebox.showerror("Error", "El correo ya está registrado.")
-            return
-        if crear_cliente(nombre, correo):
-            messagebox.showinfo("Éxito", "Cliente agregado.")
-            self.cargar_clientes()
-        else:
-            messagebox.showwarning("Error", "No se pudo agregar el cliente.")
+        nom=self.entry_nombre.get().strip()
+        corr=self.entry_correo.get().strip().lower()
+        if not nom or not corr:
+            messagebox.showerror("Error","Debe ingresar nombre y correo"); return
+        if any(c.correo.lower()==corr for c in obtener_clientes()):
+            messagebox.showerror("Error","Correo duplicado"); return
+        crear_cliente(nom,corr)
+        self.cargar_clientes()
 
     def editar_cliente(self):
         if self.cliente_seleccionado_id is None:
-            messagebox.showwarning("Aviso", "Seleccione un cliente en la lista.")
-            return
-        nombre = self.entry_nombre.get().strip()
-        correo = self.entry_correo.get().strip().lower()
-        if not nombre or not correo:
-            messagebox.showerror("Error", "Debe ingresar nombre y correo.")
-            return
-        clientes = obtener_clientes()
-        for c in clientes:
-            if c.correo.lower() == correo and c.id != self.cliente_seleccionado_id:
-                messagebox.showerror("Error", "El correo ya está registrado a otro cliente.")
-                return
-        if actualizar_cliente(self.cliente_seleccionado_id, nombre, correo):
-            messagebox.showinfo("Éxito", "Cliente actualizado.")
-            self.cargar_clientes()
-        else:
-            messagebox.showwarning("Error", "No se pudo actualizar el cliente.")
+            messagebox.showwarning("Aviso","Seleccione un cliente"); return
+        nom=self.entry_nombre.get().strip(); corr=self.entry_correo.get().strip().lower()
+        if not nom or not corr:
+            messagebox.showerror("Error","Complete nombre y correo"); return
+        for c in obtener_clientes():
+            if c.correo.lower()==corr and c.id!=self.cliente_seleccionado_id:
+                messagebox.showerror("Error","Correo ya registrado a otro cliente"); return
+        actualizar_cliente(self.cliente_seleccionado_id,nom,corr)
+        self.cargar_clientes()
 
     def eliminar_cliente(self):
         if self.cliente_seleccionado_id is None:
-            messagebox.showwarning("Aviso", "Seleccione un cliente en la lista.")
-            return
-        confirm = messagebox.askyesno("Confirmar", "¿Seguro que quiere eliminar este cliente?\nEsta acción no se puede deshacer.")
-        if not confirm:
-            return
-        if eliminar_cliente(self.cliente_seleccionado_id):
-            messagebox.showinfo("Éxito", "Cliente eliminado.")
-            self.cargar_clientes()
-        else:
-            messagebox.showwarning("Error", "No se pudo eliminar el cliente (puede tener pedidos asociados).")
+            messagebox.showwarning("Aviso","Seleccione un cliente"); return
+        if not messagebox.askyesno("Confirmar","Eliminar cliente seleccionado?"): return
+        eliminar_cliente(self.cliente_seleccionado_id)
+        self.cargar_clientes()
 
-    # ---------------------------  INGREDIENTES  ---------------------------
+    # ---------------- INGREDIENTES (sin cambios de lógica) ------------
     def init_ingredientes_tab(self):
         self.ing_nombre = ctk.CTkEntry(self.ingredientes_tab, placeholder_text="Nombre")
         self.ing_nombre.pack(pady=5)
@@ -155,229 +117,238 @@ class App(ctk.CTk):
         self.ing_tipo.pack(pady=5)
         self.ing_cantidad = ctk.CTkEntry(self.ingredientes_tab, placeholder_text="Cantidad")
         self.ing_cantidad.pack(pady=5)
-        self.ing_unidad = ctk.CTkEntry(self.ingredientes_tab, placeholder_text="Unidad (g, u, ml...)")
+        self.ing_unidad = ctk.CTkEntry(self.ingredientes_tab, placeholder_text="Unidad (g,u,ml)")
         self.ing_unidad.pack(pady=5)
 
-        btn_frame = ctk.CTkFrame(self.ingredientes_tab)
-        btn_frame.pack(pady=5)
-        ctk.CTkButton(btn_frame, text="Agregar Ingrediente", command=self.agregar_ingrediente).grid(row=0, column=0, padx=5)
-        ctk.CTkButton(btn_frame, text="Cargar Ingredientes", command=self.cargar_ingredientes).grid(row=0, column=1, padx=5)
+        btn = ctk.CTkButton(self.ingredientes_tab, text="Agregar Ingrediente", command=self.agregar_ingrediente)
+        btn.pack(pady=5)
+        ctk.CTkButton(self.ingredientes_tab, text="Cargar Ingredientes", command=self.cargar_ingredientes).pack(pady=5)
 
-        tree_frame = ctk.CTkFrame(self.ingredientes_tab)
-        tree_frame.pack(pady=10, fill="both", expand=True)
-
-        self.tree_ingredientes = ttk.Treeview(tree_frame, columns=("id", "nombre", "tipo", "cantidad", "unidad"), show="headings")
-        for col, header in zip(("id", "nombre", "tipo", "cantidad", "unidad"), ("ID", "Nombre", "Tipo", "Cantidad", "Unidad")):
-            self.tree_ingredientes.heading(col, text=header)
-            self.tree_ingredientes.column(col, anchor="center")
-        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree_ingredientes.yview)
+        frame = ctk.CTkFrame(self.ingredientes_tab); frame.pack(expand=True, fill="both", pady=10)
+        self.tree_ingredientes = ttk.Treeview(frame, columns=("id","nombre","tipo","cantidad","unidad"), show="headings")
+        for col,hdr in zip(("id","nombre","tipo","cantidad","unidad"),("ID","Nombre","Tipo","Cant","Unidad")):
+            self.tree_ingredientes.heading(col,text=hdr); self.tree_ingredientes.column(col,anchor="center")
+        vsb=ttk.Scrollbar(frame, orient="vertical", command=self.tree_ingredientes.yview)
         self.tree_ingredientes.configure(yscrollcommand=vsb.set)
-        self.tree_ingredientes.pack(side="left", fill="both", expand=True)
-        vsb.pack(side="right", fill="y")
-
+        self.tree_ingredientes.pack(side="left", fill="both", expand=True); vsb.pack(side="right", fill="y")
         self.cargar_ingredientes()
 
-    def agregar_ingrediente(self):
-        nombre = self.ing_nombre.get()
-        tipo = self.ing_tipo.get()
-        cantidad = self.ing_cantidad.get()
-        unidad = self.ing_unidad.get()
-        try:
-            cantidad = float(cantidad)
-        except ValueError:
-            messagebox.showerror("Error", "Cantidad inválida.")
-            return
-        if crear_ingrediente(nombre, tipo, cantidad, unidad):
-            messagebox.showinfo("Éxito", "Ingrediente agregado.")
-            self.cargar_ingredientes()
-        else:
-            messagebox.showwarning("Error", "Ingrediente ya existe.")
-
     def cargar_ingredientes(self):
-        ingredientes = obtener_ingredientes()
-        for item in self.tree_ingredientes.get_children():
-            self.tree_ingredientes.delete(item)
-        for i in ingredientes:
-            self.tree_ingredientes.insert('', 'end', iid=i.id, values=(i.id, i.nombre, i.tipo, i.cantidad, i.unidad))
+        ingr=obtener_ingredientes()
+        for i in self.tree_ingredientes.get_children(): self.tree_ingredientes.delete(i)
+        for ing in ingr:
+            self.tree_ingredientes.insert('', 'end', iid=ing.id, values=(ing.id, ing.nombre, ing.tipo, ing.cantidad, ing.unidad))
 
-    # ---------------------------  MENÚS  ---------------------------
+    def agregar_ingrediente(self):
+        nombre=self.ing_nombre.get(); tipo=self.ing_tipo.get(); cant=self.ing_cantidad.get(); unidad=self.ing_unidad.get()
+        try: cant=float(cant)
+        except ValueError:
+            messagebox.showerror("Error","Cantidad inválida"); return
+        if crear_ingrediente(nombre,tipo,cant,unidad):
+            self.cargar_ingredientes()
+            self.cargar_ingredientes_combo()  # update menu tab combo
+        else:
+            messagebox.showwarning("Error","Ingrediente ya existe")
+
+    # ---------------- MENÚS con receta -------------------
     def init_menus_tab(self):
-        self.menu_nombre = ctk.CTkEntry(self.menus_tab, placeholder_text="Nombre del Menú")
+        # Datos básicos
+        self.menu_nombre = ctk.CTkEntry(self.menus_tab, placeholder_text="Nombre del plato")
         self.menu_nombre.pack(pady=5)
         self.menu_desc = ctk.CTkEntry(self.menus_tab, placeholder_text="Descripción")
         self.menu_desc.pack(pady=5)
         self.menu_precio = ctk.CTkEntry(self.menus_tab, placeholder_text="Precio ($)")
         self.menu_precio.pack(pady=5)
 
-        btn_frame = ctk.CTkFrame(self.menus_tab)
-        btn_frame.pack(pady=5)
-        ctk.CTkButton(btn_frame, text="Agregar Menú", command=self.agregar_menu).grid(row=0, column=0, padx=5)
-        ctk.CTkButton(btn_frame, text="Cargar Menús", command=self.cargar_menus).grid(row=0, column=1, padx=5)
+        # Selector de ingredientes para receta
+        ingr_frame = ctk.CTkFrame(self.menus_tab)
+        ingr_frame.pack(pady=5)
+        ctk.CTkLabel(ingr_frame, text="Ingrediente").grid(row=0, column=0, padx=5)
+        self.combo_ing = ttk.Combobox(ingr_frame, state="readonly", width=25)
+        self.combo_ing.grid(row=0, column=1, padx=5)
+        self.entry_ing_cant = ctk.CTkEntry(ingr_frame, placeholder_text="Cant.", width=70)
+        self.entry_ing_cant.grid(row=0, column=2, padx=5)
+        ctk.CTkButton(ingr_frame, text="Añadir a Receta", command=self.anadir_ing_receta).grid(row=0, column=3, padx=5)
 
-        tree_frame = ctk.CTkFrame(self.menus_tab)
-        tree_frame.pack(pady=10, fill="both", expand=True)
+        # Árbol con receta
+        recipe_frame = ctk.CTkFrame(self.menus_tab)
+        recipe_frame.pack(pady=5, fill="both", expand=True)
+        self.tree_receta = ttk.Treeview(recipe_frame, columns=("ing","cant","unidad"), show="headings", height=6)
+        for col,hdr in zip(("ing","cant","unidad"),("Ingrediente","Cant","Unidad")):
+            self.tree_receta.heading(col,text=hdr); self.tree_receta.column(col, anchor="center")
+        vsb=ttk.Scrollbar(recipe_frame, orient="vertical", command=self.tree_receta.yview)
+        self.tree_receta.configure(yscrollcommand=vsb.set)
+        self.tree_receta.pack(side="left", fill="both", expand=True); vsb.pack(side="right", fill="y")
 
-        self.tree_menus = ttk.Treeview(tree_frame, columns=("id", "nombre", "descripcion", "precio"), show="headings")
-        for col, header in zip(("id", "nombre", "descripcion", "precio"), ("ID", "Nombre", "Descripción", "Precio")):
-            self.tree_menus.heading(col, text=header)
-            self.tree_menus.column(col, anchor="center")
-        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree_menus.yview)
-        self.tree_menus.configure(yscrollcommand=vsb.set)
-        self.tree_menus.pack(side="left", fill="both", expand=True)
-        vsb.pack(side="right", fill="y")
+        # Botones
+        btn_frame = ctk.CTkFrame(self.menus_tab); btn_frame.pack(pady=5)
+        ctk.CTkButton(btn_frame, text="Crear Menú", command=self.crear_menu_receta).grid(row=0,column=0,padx=5)
+        ctk.CTkButton(btn_frame, text="Cargar Menús", command=self.cargar_menus).grid(row=0,column=1,padx=5)
+        ctk.CTkButton(btn_frame, text="Limpiar Receta", command=self.limpiar_receta).grid(row=0,column=2,padx=5)
 
+        # Lista de menús existentes
+        list_frame = ctk.CTkFrame(self.menus_tab); list_frame.pack(pady=10, fill="both", expand=True)
+        self.tree_menus = ttk.Treeview(list_frame, columns=("id","nombre","precio","descripcion"), show="headings")
+        for col,hdr in zip(("id","nombre","precio","descripcion"),("ID","Nombre","Precio","Descripción")):
+            self.tree_menus.heading(col,text=hdr); self.tree_menus.column(col, anchor="center")
+        vsb2=ttk.Scrollbar(list_frame, orient="vertical", command=self.tree_menus.yview)
+        self.tree_menus.configure(yscrollcommand=vsb2.set)
+        self.tree_menus.pack(side="left", fill="both", expand=True); vsb2.pack(side="right", fill="y")
+
+        self.receta=[]  # List[dict] cada dict: {id,nombre,cant,unidad}
+        self.cargar_ingredientes_combo()
         self.cargar_menus()
 
-    def agregar_menu(self):
-        nombre = self.menu_nombre.get()
-        desc = self.menu_desc.get()
+    def cargar_ingredientes_combo(self):
+        self.ingredientes_source=obtener_ingredientes()
+        self.combo_ing['values']=[f"{ing.id} - {ing.nombre}" for ing in self.ingredientes_source]
+        if self.ingredientes_source:
+            self.combo_ing.current(0)
+
+    def anadir_ing_receta(self):
+        if not self.combo_ing.get():
+            messagebox.showwarning("Aviso","Ingrese ingrediente"); return
         try:
-            precio = float(self.menu_precio.get())
+            cant=float(self.entry_ing_cant.get())
+            if cant<=0: raise ValueError
         except ValueError:
-            messagebox.showerror("Error", "Precio inválido.")
-            return
-        # Guardamos precio concatenado en descripción por compatibilidad si el CRUD no soporta campo precio
-        desc_con_precio = f"{desc}|{precio}"
-        if crear_menu(nombre, desc_con_precio):
-            messagebox.showinfo("Éxito", "Menú agregado.")
-            self.cargar_menus()
-        else:
-            messagebox.showwarning("Error", "No se pudo agregar menú.")
+            messagebox.showerror("Error","Cantidad inválida"); return
+        idx=self.combo_ing.current()
+        ing=self.ingredientes_source[idx]
+        # evitar duplicados
+        if any(r['id']==ing.id for r in self.receta):
+            messagebox.showwarning("Aviso","Ingrediente ya añadido"); return
+        entry={'id':ing.id,'nombre':ing.nombre,'cant':cant,'unidad':ing.unidad}
+        self.receta.append(entry)
+        self.tree_receta.insert('', 'end', iid=ing.id, values=(ing.nombre, cant, ing.unidad))
+        self.entry_ing_cant.delete(0,'end')
+
+    def limpiar_receta(self):
+        self.receta.clear()
+        for i in self.tree_receta.get_children(): self.tree_receta.delete(i)
+
+    def crear_menu_receta(self):
+        nombre=self.menu_nombre.get().strip()
+        desc=self.menu_desc.get().strip()
+        try: precio=float(self.menu_precio.get())
+        except ValueError:
+            messagebox.showerror("Error","Precio inválido"); return
+        if not nombre or not desc:
+            messagebox.showerror("Error","Complete nombre y descripción"); return
+        if not self.receta:
+            messagebox.showwarning("Aviso","Añada al menos 1 ingrediente"); return
+
+        # Guardar menú
+        crear_menu(nombre, desc, precio)
+        # Obtener id recién creado (mayor id)
+        menu_id=max(obtener_menus(), key=lambda m:m.id).id
+        # Guardar receta en archivo json (rápido) -> recetas/{menu_id}.json
+        import os, json
+        os.makedirs('recetas', exist_ok=True)
+        with open(f'recetas/{menu_id}.json','w', encoding='utf-8') as f:
+            json.dump(self.receta, f, ensure_ascii=False, indent=2)
+        messagebox.showinfo("Éxito", "Menú creado con receta")
+        # Limpiar UI
+        self.menu_nombre.delete(0,'end'); self.menu_desc.delete(0,'end'); self.menu_precio.delete(0,'end')
+        self.limpiar_receta()
+        self.cargar_menus()
+        self.cargar_comboboxes()  # actualizar combo en pedidos
 
     def cargar_menus(self):
-        menus = obtener_menus()
-        for item in self.tree_menus.get_children():
-            self.tree_menus.delete(item)
+        menus=obtener_menus()
+        for i in self.tree_menus.get_children(): self.tree_menus.delete(i)
         for m in menus:
-            precio = parse_menu_price(m.descripcion)
-            desc = m.descripcion.split("|")[0] if "|" in m.descripcion else m.descripcion
-            self.tree_menus.insert('', 'end', iid=m.id, values=(m.id, m.nombre, desc, precio))
+            self.tree_menus.insert('', 'end', iid=m.id, values=(m.id, m.nombre, m.precio, m.descripcion))
 
-    # ---------------------------  PEDIDOS  ---------------------------
+    # ---------------- PEDIDOS (sólo se muestra precio correcto) ------
     def init_pedidos_tab(self):
-        # Cliente selector
-        client_frame = ctk.CTkFrame(self.pedidos_tab)
-        client_frame.pack(pady=5)
-        ctk.CTkLabel(client_frame, text="Cliente").grid(row=0, column=0, padx=5)
-        self.combo_clientes = ttk.Combobox(client_frame, state="readonly")
-        self.combo_clientes.grid(row=0, column=1, padx=5)
+        top_frame = ctk.CTkFrame(self.pedidos_tab); top_frame.pack(pady=5)
+        ctk.CTkLabel(top_frame,text="Cliente").grid(row=0,column=0,padx=5)
+        self.combo_clientes = ttk.Combobox(top_frame, state="readonly", width=30)
+        self.combo_clientes.grid(row=0,column=1,padx=5)
 
-        # Menú selector
-        menu_frame = ctk.CTkFrame(self.pedidos_tab)
-        menu_frame.pack(pady=5)
-        ctk.CTkLabel(menu_frame, text="Menú").grid(row=0, column=0, padx=5)
-        self.combo_menus = ttk.Combobox(menu_frame, state="readonly")
-        self.combo_menus.grid(row=0, column=1, padx=5)
-        self.entry_cant = ctk.CTkEntry(menu_frame, placeholder_text="Cantidad", width=80)
-        self.entry_cant.grid(row=0, column=2, padx=5)
-        ctk.CTkButton(menu_frame, text="Añadir Item", command=self.anadir_item).grid(row=0, column=3, padx=5)
+        ctk.CTkLabel(top_frame,text="Menú").grid(row=0,column=2,padx=5)
+        self.combo_menus = ttk.Combobox(top_frame, state="readonly", width=30)
+        self.combo_menus.grid(row=0,column=3,padx=5)
+        self.entry_cant = ctk.CTkEntry(top_frame, placeholder_text="Cant", width=60)
+        self.entry_cant.grid(row=0,column=4,padx=5)
+        ctk.CTkButton(top_frame,text="Añadir", command=self.anadir_item_pedido).grid(row=0,column=5,padx=5)
 
-        # Lista temporal de items del pedido
-        tree_frame = ctk.CTkFrame(self.pedidos_tab)
-        tree_frame.pack(pady=10, fill="both", expand=True)
-        self.tree_items = ttk.Treeview(tree_frame, columns=("menu", "cantidad", "precio", "subtotal"), show="headings")
-        for col, header in zip(("menu", "cantidad", "precio", "subtotal"), ("Menú", "Cant", "Precio", "Subtotal")):
-            self.tree_items.heading(col, text=header)
-            self.tree_items.column(col, anchor="center")
-        vsb_items = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree_items.yview)
-        self.tree_items.configure(yscrollcommand=vsb_items.set)
-        self.tree_items.pack(side="left", fill="both", expand=True)
-        vsb_items.pack(side="right", fill="y")
+        # Items carrito
+        frame_items=ctk.CTkFrame(self.pedidos_tab); frame_items.pack(fill="both", expand=True, pady=10)
+        self.tree_items = ttk.Treeview(frame_items, columns=("menu","cant","precio","sub"), show="headings")
+        for col,hdr in zip(("menu","cant","precio","sub"),("Menu","Cant","Precio","Subtotal")):
+            self.tree_items.heading(col,text=hdr); self.tree_items.column(col,anchor="center")
+        vsb=ttk.Scrollbar(frame_items, orient="vertical", command=self.tree_items.yview)
+        self.tree_items.configure(yscrollcommand=vsb.set)
+        self.tree_items.pack(side="left", fill="both", expand=True); vsb.pack(side="right", fill="y")
 
-        # Total y acciones
-        total_frame = ctk.CTkFrame(self.pedidos_tab)
-        total_frame.pack(pady=5)
-        self.label_total = ctk.CTkLabel(total_frame, text="Total: $0", font=(None, 16, "bold"))
-        self.label_total.grid(row=0, column=0, padx=10)
-        ctk.CTkButton(total_frame, text="Guardar Pedido", command=self.guardar_pedido).grid(row=0, column=1, padx=5)
-        ctk.CTkButton(total_frame, text="Ver Pedidos", command=self.ver_pedidos).grid(row=0, column=2, padx=5)
+        total_frame=ctk.CTkFrame(self.pedidos_tab); total_frame.pack(pady=5)
+        self.label_total=ctk.CTkLabel(total_frame, text="Total: $0", font=(None,14,"bold"))
+        self.label_total.pack(side="left", padx=10)
+        ctk.CTkButton(total_frame, text="Guardar Pedido", command=self.guardar_pedido).pack(side="left", padx=5)
+        ctk.CTkButton(total_frame, text="Ver Pedidos", command=self.ver_pedidos).pack(side="left", padx=5)
 
-        # Treeview pedidos históricos
-        history_frame = ctk.CTkFrame(self.pedidos_tab)
-        history_frame.pack(pady=10, fill="both", expand=True)
-        self.tree_pedidos = ttk.Treeview(history_frame, columns=("id", "cliente", "total", "fecha", "descripcion"), show="headings")
-        for col, header in zip(("id", "cliente", "total", "fecha", "descripcion"), ("ID", "Cliente", "Total", "Fecha", "Descripción")):
-            self.tree_pedidos.heading(col, text=header)
-            self.tree_pedidos.column(col, anchor="center")
-        vsb = ttk.Scrollbar(history_frame, orient="vertical", command=self.tree_pedidos.yview)
-        self.tree_pedidos.configure(yscrollcommand=vsb.set)
-        self.tree_pedidos.pack(side="left", fill="both", expand=True)
-        vsb.pack(side="right", fill="y")
+        # Historial
+        history=ctk.CTkFrame(self.pedidos_tab); history.pack(fill="both", expand=True, pady=10)
+        self.tree_pedidos=ttk.Treeview(history, columns=("id","cli","total","fecha","desc"), show="headings")
+        for col,hdr in zip(("id","cli","total","fecha","desc"),("ID","Cliente","Total","Fecha","Descripción")):
+            self.tree_pedidos.heading(col,text=hdr); self.tree_pedidos.column(col,anchor="center")
+        vsb2=ttk.Scrollbar(history, orient="vertical", command=self.tree_pedidos.yview)
+        self.tree_pedidos.configure(yscrollcommand=vsb2.set)
+        self.tree_pedidos.pack(side="left", fill="both", expand=True); vsb2.pack(side="right", fill="y")
 
-        # Datos auxiliares
-        self.carrito = []  # [(menu_id, nombre, cant, precio, subtotal)]
+        # Datos
+        self.carrito=[]
         self.cargar_comboboxes()
 
     def cargar_comboboxes(self):
-        # Clientes
-        self.clientes_cb_source = obtener_clientes()
-        self.combo_clientes['values'] = [f"{c.id} - {c.nombre}" for c in self.clientes_cb_source]
-        if self.clientes_cb_source:
-            self.combo_clientes.current(0)
-        # Menús
-        self.menus_cb_source = obtener_menus()
-        self.combo_menus['values'] = [f"{m.id} - {m.nombre}" for m in self.menus_cb_source]
-        if self.menus_cb_source:
-            self.combo_menus.current(0)
+        self.clientes_cb=obtener_clientes()
+        self.combo_clientes['values']=[f"{c.id} - {c.nombre}" for c in self.clientes_cb]
+        if self.clientes_cb: self.combo_clientes.current(0)
+        self.menus_cb=obtener_menus()
+        self.combo_menus['values']=[f"{m.id} - {m.nombre}" for m in self.menus_cb]
+        if self.menus_cb: self.combo_menus.current(0)
 
-    def anadir_item(self):
-        if not self.combo_menus.get():
-            messagebox.showwarning("Aviso", "Debe seleccionar un menú")
-            return
-        try:
-            cantidad = int(self.entry_cant.get())
-            if cantidad <= 0:
-                raise ValueError
-        except ValueError:
-            messagebox.showerror("Error", "Cantidad inválida")
-            return
-        # Obtener menú seleccionado
-        idx = self.combo_menus.current()
-        menu = self.menus_cb_source[idx]
-        precio = parse_menu_price(menu.descripcion)
-        subtotal = precio * cantidad
-        self.carrito.append((menu.id, menu.nombre, cantidad, precio, subtotal))
-        self.tree_items.insert('', 'end', values=(menu.nombre, cantidad, precio, subtotal))
+    def anadir_item_pedido(self):
+        if not self.combo_menus.get(): return
+        try: cant=int(self.entry_cant.get()); assert cant>0
+        except (ValueError, AssertionError):
+            messagebox.showerror("Error","Cantidad inválida"); return
+        menu=self.menus_cb[self.combo_menus.current()]
+        subtotal=menu.precio*cant
+        self.carrito.append((menu.id,cant))
+        self.tree_items.insert('', 'end', values=(menu.nombre,cant,menu.precio,subtotal))
+        self.entry_cant.delete(0,'end')
         self.actualizar_total()
-        # Limpiar cantidad
-        self.entry_cant.delete(0, 'end')
 
     def actualizar_total(self):
-        total = sum(item[4] for item in self.carrito)
+        total=0
+        for iid in self.tree_items.get_children():
+            total+=float(self.tree_items.item(iid)['values'][3])
         self.label_total.configure(text=f"Total: ${total}")
         return total
 
     def guardar_pedido(self):
         if not self.combo_clientes.get():
-            messagebox.showwarning("Aviso", "Seleccione un cliente")
-            return
+            messagebox.showwarning("Aviso","Seleccione cliente"); return
         if not self.carrito:
-            messagebox.showwarning("Aviso", "Añada items al pedido")
-            return
-        cliente_idx = self.combo_clientes.current()
-        cliente = self.clientes_cb_source[cliente_idx]
-
-        total = self.actualizar_total()
-        descripcion = ", ".join([f"{cant}x {name}" for _, name, cant, _, _ in self.carrito])
-        try:
-            crear_pedido(cliente.id, descripcion, total, sum(item[2] for item in self.carrito))
-            messagebox.showinfo("Éxito", "Pedido guardado")
-            # Reset carrito e UI
-            self.carrito.clear()
-            for item in self.tree_items.get_children():
-                self.tree_items.delete(item)
-            self.actualizar_total()
-            self.ver_pedidos()
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo guardar pedido: {e}")
+            messagebox.showwarning("Aviso","Añada items"); return
+        cli=self.clientes_cb[self.combo_clientes.current()]
+        crear_pedido(cli.id, self.carrito)
+        messagebox.showinfo("Éxito","Pedido guardado")
+        # reset
+        self.carrito.clear()
+        for i in self.tree_items.get_children(): self.tree_items.delete(i)
+        self.actualizar_total()
+        self.ver_pedidos()
 
     def ver_pedidos(self):
-        pedidos = obtener_pedidos()
-        for item in self.tree_pedidos.get_children():
-            self.tree_pedidos.delete(item)
-        for p in pedidos:
-            self.tree_pedidos.insert('', 'end', iid=p.id, values=(p.id, p.cliente_id, p.total, p.fecha.strftime("%Y-%m-%d"), p.descripcion))
+        peds=obtener_pedidos()
+        for i in self.tree_pedidos.get_children(): self.tree_pedidos.delete(i)
+        for p in peds:
+            self.tree_pedidos.insert('', 'end', iid=p.id, values=(p.id, p.cliente_id, p.total, p.fecha.strftime("%Y-%m-%d %H:%M"), p.descripcion))
 
-if __name__ == "__main__":
-    app = App()
+if __name__=="__main__":
+    app=App()
     app.mainloop()

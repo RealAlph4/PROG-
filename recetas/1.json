@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "nombre": "tomate",
+    "cant": 0.5,
+    "unidad": "Unidades"
+  },
+  {
+    "id": 2,
+    "nombre": "pan de completo",
+    "cant": 1.0,
+    "unidad": "Unidades"
+  },
+  {
+    "id": 3,
+    "nombre": "vienesa",
+    "cant": 1.0,
+    "unidad": "Unidades"
+  },
+  {
+    "id": 4,
+    "nombre": "palta",
+    "cant": 0.5,
+    "unidad": "Unidades"
+  },
+  {
+    "id": 5,
+    "nombre": "mayo",
+    "cant": 1.0,
+    "unidad": "Unidades"
+  }
+]
