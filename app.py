@@ -1,4 +1,6 @@
 import customtkinter as ctk
+import tkinter as tk
+from tkinter import ttk
 import tkinter.messagebox as messagebox
 
 from crud.cliente_crud import crear_cliente, obtener_clientes, actualizar_cliente, eliminar_cliente
@@ -8,6 +10,7 @@ from crud.pedido_crud import crear_pedido, obtener_pedidos
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
+
 
 class App(ctk.CTk):
     def __init__(self):
@@ -28,7 +31,7 @@ class App(ctk.CTk):
         self.init_menus_tab()
         self.init_pedidos_tab()
 
-    # ---------------- Panel de CLIENTES Mejorado ---------------------
+    # ---------------------------  CLIENTES  ---------------------------
     def init_clientes_tab(self):
         self.entry_nombre = ctk.CTkEntry(self.clientes_tab, placeholder_text="Nombre")
         self.entry_nombre.pack(pady=5)
@@ -42,45 +45,47 @@ class App(ctk.CTk):
         ctk.CTkButton(btn_frame, text="Eliminar Cliente", command=self.eliminar_cliente).grid(row=0, column=2, padx=5)
         ctk.CTkButton(btn_frame, text="Cargar Lista", command=self.cargar_clientes).grid(row=0, column=3, padx=5)
 
-        self.lista_clientes = ctk.CTkTextbox(self.clientes_tab, height=250)
-        self.lista_clientes.pack(pady=10, fill="x", padx=5)
-        self.lista_clientes.configure(state="normal")
-        self.lista_clientes.bind("<ButtonRelease-1>", self.seleccionar_cliente_evento)
+        # Treeview + Scrollbar
+        tree_frame = ctk.CTkFrame(self.clientes_tab)
+        tree_frame.pack(pady=10, fill="both", expand=True)
 
-        # Para identificar el cliente seleccionado
+        self.tree_clientes = ttk.Treeview(tree_frame, columns=("id", "nombre", "correo"), show="headings")
+        for col, header in zip(("id", "nombre", "correo"), ("ID", "Nombre", "Correo")):
+            self.tree_clientes.heading(col, text=header)
+            self.tree_clientes.column(col, anchor="center")
+        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree_clientes.yview)
+        self.tree_clientes.configure(yscrollcommand=vsb.set)
+
+        self.tree_clientes.pack(side="left", fill="both", expand=True)
+        vsb.pack(side="right", fill="y")
+
+        self.tree_clientes.bind("<<TreeviewSelect>>", self.seleccionar_cliente_evento)
+
         self.cliente_seleccionado_id = None
-
         self.cargar_clientes()
 
     def cargar_clientes(self):
         self.clientes = obtener_clientes()
-        self.lista_clientes.configure(state="normal")
-        self.lista_clientes.delete("0.0", "end")
+        for item in self.tree_clientes.get_children():
+            self.tree_clientes.delete(item)
         for c in self.clientes:
-            self.lista_clientes.insert("end", f"{c.id}: {c.nombre} - {c.correo}\n")
-        self.lista_clientes.configure(state="disabled")
+            self.tree_clientes.insert('', 'end', iid=c.id, values=(c.id, c.nombre, c.correo))
         self.cliente_seleccionado_id = None
         self.entry_nombre.delete(0, "end")
         self.entry_correo.delete(0, "end")
 
     def seleccionar_cliente_evento(self, event):
-        index = self.lista_clientes.index(f"@{event.x},{event.y}")
-        linea = int(float(index))
-        texto = self.lista_clientes.get(f"{linea}.0", f"{linea}.end").strip()
-        if texto:
-            try:
-                id_cliente = int(texto.split(":")[0])
-            except Exception:
-                id_cliente = None
-            # Rellenar los campos si el id es válido
-            if id_cliente:
-                cliente = next((c for c in self.clientes if c.id == id_cliente), None)
-                if cliente:
-                    self.entry_nombre.delete(0, "end")
-                    self.entry_nombre.insert(0, cliente.nombre)
-                    self.entry_correo.delete(0, "end")
-                    self.entry_correo.insert(0, cliente.correo)
-                    self.cliente_seleccionado_id = cliente.id
+        selected = self.tree_clientes.selection()
+        if not selected:
+            return
+        item_id = int(selected[0])
+        cliente = next((c for c in self.clientes if c.id == item_id), None)
+        if cliente:
+            self.entry_nombre.delete(0, "end")
+            self.entry_nombre.insert(0, cliente.nombre)
+            self.entry_correo.delete(0, "end")
+            self.entry_correo.insert(0, cliente.correo)
+            self.cliente_seleccionado_id = cliente.id
 
     def agregar_cliente(self):
         nombre = self.entry_nombre.get().strip()
@@ -88,7 +93,6 @@ class App(ctk.CTk):
         if not nombre or not correo:
             messagebox.showerror("Error", "Debe ingresar nombre y correo.")
             return
-        # Validación unicidad correo
         clientes = obtener_clientes()
         if any(c.correo.lower() == correo for c in clientes):
             messagebox.showerror("Error", "El correo ya está registrado.")
@@ -108,7 +112,6 @@ class App(ctk.CTk):
         if not nombre or not correo:
             messagebox.showerror("Error", "Debe ingresar nombre y correo.")
             return
-        # Validación unicidad correo (excepto a sí mismo)
         clientes = obtener_clientes()
         for c in clientes:
             if c.correo.lower() == correo and c.id != self.cliente_seleccionado_id:
@@ -133,7 +136,7 @@ class App(ctk.CTk):
         else:
             messagebox.showwarning("Error", "No se pudo eliminar el cliente (puede tener pedidos asociados).")
 
-    # ----------------- INGREDIENTES, MENÚS y PEDIDOS -----------------
+    # ---------------------------  INGREDIENTES  ---------------------------
     def init_ingredientes_tab(self):
         self.ing_nombre = ctk.CTkEntry(self.ingredientes_tab, placeholder_text="Nombre")
         self.ing_nombre.pack(pady=5)
@@ -143,10 +146,25 @@ class App(ctk.CTk):
         self.ing_cantidad.pack(pady=5)
         self.ing_unidad = ctk.CTkEntry(self.ingredientes_tab, placeholder_text="Unidad (g, u, ml...)")
         self.ing_unidad.pack(pady=5)
-        ctk.CTkButton(self.ingredientes_tab, text="Agregar Ingrediente", command=self.agregar_ingrediente).pack(pady=5)
-        ctk.CTkButton(self.ingredientes_tab, text="Cargar Ingredientes", command=self.cargar_ingredientes).pack(pady=5)
-        self.lista_ingredientes = ctk.CTkTextbox(self.ingredientes_tab, height=250)
-        self.lista_ingredientes.pack(pady=10)
+
+        btn_frame = ctk.CTkFrame(self.ingredientes_tab)
+        btn_frame.pack(pady=5)
+        ctk.CTkButton(btn_frame, text="Agregar Ingrediente", command=self.agregar_ingrediente).grid(row=0, column=0, padx=5)
+        ctk.CTkButton(btn_frame, text="Cargar Ingredientes", command=self.cargar_ingredientes).grid(row=0, column=1, padx=5)
+
+        tree_frame = ctk.CTkFrame(self.ingredientes_tab)
+        tree_frame.pack(pady=10, fill="both", expand=True)
+
+        self.tree_ingredientes = ttk.Treeview(tree_frame, columns=("id", "nombre", "tipo", "cantidad", "unidad"), show="headings")
+        for col, header in zip(("id", "nombre", "tipo", "cantidad", "unidad"), ("ID", "Nombre", "Tipo", "Cantidad", "Unidad")):
+            self.tree_ingredientes.heading(col, text=header)
+            self.tree_ingredientes.column(col, anchor="center")
+        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree_ingredientes.yview)
+        self.tree_ingredientes.configure(yscrollcommand=vsb.set)
+        self.tree_ingredientes.pack(side="left", fill="both", expand=True)
+        vsb.pack(side="right", fill="y")
+
+        self.cargar_ingredientes()
 
     def agregar_ingrediente(self):
         nombre = self.ing_nombre.get()
@@ -166,19 +184,36 @@ class App(ctk.CTk):
 
     def cargar_ingredientes(self):
         ingredientes = obtener_ingredientes()
-        self.lista_ingredientes.delete("0.0", "end")
+        for item in self.tree_ingredientes.get_children():
+            self.tree_ingredientes.delete(item)
         for i in ingredientes:
-            self.lista_ingredientes.insert("end", f"{i.id}: {i.nombre} - {i.tipo} - {i.cantidad} {i.unidad}\n")
+            self.tree_ingredientes.insert('', 'end', iid=i.id, values=(i.id, i.nombre, i.tipo, i.cantidad, i.unidad))
 
+    # ---------------------------  MENÚS  ---------------------------
     def init_menus_tab(self):
         self.menu_nombre = ctk.CTkEntry(self.menus_tab, placeholder_text="Nombre del Menú")
         self.menu_nombre.pack(pady=5)
         self.menu_desc = ctk.CTkEntry(self.menus_tab, placeholder_text="Descripción")
         self.menu_desc.pack(pady=5)
-        ctk.CTkButton(self.menus_tab, text="Agregar Menú", command=self.agregar_menu).pack(pady=5)
-        ctk.CTkButton(self.menus_tab, text="Cargar Menús", command=self.cargar_menus).pack(pady=5)
-        self.lista_menus = ctk.CTkTextbox(self.menus_tab, height=250)
-        self.lista_menus.pack(pady=10)
+
+        btn_frame = ctk.CTkFrame(self.menus_tab)
+        btn_frame.pack(pady=5)
+        ctk.CTkButton(btn_frame, text="Agregar Menú", command=self.agregar_menu).grid(row=0, column=0, padx=5)
+        ctk.CTkButton(btn_frame, text="Cargar Menús", command=self.cargar_menus).grid(row=0, column=1, padx=5)
+
+        tree_frame = ctk.CTkFrame(self.menus_tab)
+        tree_frame.pack(pady=10, fill="both", expand=True)
+
+        self.tree_menus = ttk.Treeview(tree_frame, columns=("id", "nombre", "descripcion"), show="headings")
+        for col, header in zip(("id", "nombre", "descripcion"), ("ID", "Nombre", "Descripción")):
+            self.tree_menus.heading(col, text=header)
+            self.tree_menus.column(col, anchor="center")
+        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree_menus.yview)
+        self.tree_menus.configure(yscrollcommand=vsb.set)
+        self.tree_menus.pack(side="left", fill="both", expand=True)
+        vsb.pack(side="right", fill="y")
+
+        self.cargar_menus()
 
     def agregar_menu(self):
         nombre = self.menu_nombre.get()
@@ -191,10 +226,12 @@ class App(ctk.CTk):
 
     def cargar_menus(self):
         menus = obtener_menus()
-        self.lista_menus.delete("0.0", "end")
+        for item in self.tree_menus.get_children():
+            self.tree_menus.delete(item)
         for m in menus:
-            self.lista_menus.insert("end", f"{m.id}: {m.nombre} - {m.descripcion}\n")
+            self.tree_menus.insert('', 'end', iid=m.id, values=(m.id, m.nombre, m.descripcion))
 
+    # ---------------------------  PEDIDOS  ---------------------------
     def init_pedidos_tab(self):
         self.ped_cliente = ctk.CTkEntry(self.pedidos_tab, placeholder_text="ID Cliente")
         self.ped_cliente.pack(pady=5)
@@ -204,10 +241,23 @@ class App(ctk.CTk):
         self.ped_total.pack(pady=5)
         self.ped_cant = ctk.CTkEntry(self.pedidos_tab, placeholder_text="Cantidad de Menús")
         self.ped_cant.pack(pady=5)
-        ctk.CTkButton(self.pedidos_tab, text="Guardar Pedido", command=self.guardar_pedido).pack(pady=5)
-        ctk.CTkButton(self.pedidos_tab, text="Ver Pedidos", command=self.ver_pedidos).pack(pady=5)
-        self.lista_pedidos = ctk.CTkTextbox(self.pedidos_tab, height=250)
-        self.lista_pedidos.pack(pady=10)
+
+        btn_frame = ctk.CTkFrame(self.pedidos_tab)
+        btn_frame.pack(pady=5)
+        ctk.CTkButton(btn_frame, text="Guardar Pedido", command=self.guardar_pedido).grid(row=0, column=0, padx=5)
+        ctk.CTkButton(btn_frame, text="Ver Pedidos", command=self.ver_pedidos).grid(row=0, column=1, padx=5)
+
+        tree_frame = ctk.CTkFrame(self.pedidos_tab)
+        tree_frame.pack(pady=10, fill="both", expand=True)
+
+        self.tree_pedidos = ttk.Treeview(tree_frame, columns=("id", "cliente", "total", "fecha", "descripcion"), show="headings")
+        for col, header in zip(("id", "cliente", "total", "fecha", "descripcion"), ("ID", "Cliente", "Total", "Fecha", "Descripción")):
+            self.tree_pedidos.heading(col, text=header)
+            self.tree_pedidos.column(col, anchor="center")
+        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree_pedidos.yview)
+        self.tree_pedidos.configure(yscrollcommand=vsb.set)
+        self.tree_pedidos.pack(side="left", fill="both", expand=True)
+        vsb.pack(side="right", fill="y")
 
     def guardar_pedido(self):
         try:
@@ -217,14 +267,16 @@ class App(ctk.CTk):
             descripcion = self.ped_desc.get()
             crear_pedido(cliente_id, descripcion, total, cantidad)
             messagebox.showinfo("Éxito", "Pedido guardado.")
+            self.ver_pedidos()
         except:
             messagebox.showerror("Error", "Verifica los campos.")
 
     def ver_pedidos(self):
         pedidos = obtener_pedidos()
-        self.lista_pedidos.delete("0.0", "end")
+        for item in self.tree_pedidos.get_children():
+            self.tree_pedidos.delete(item)
         for p in pedidos:
-            self.lista_pedidos.insert("end", f"{p.id}: Cliente {p.cliente_id} - ${p.total} - {p.fecha}\n")
+            self.tree_pedidos.insert('', 'end', iid=p.id, values=(p.id, p.cliente_id, p.total, p.fecha.strftime("%Y-%m-%d"), p.descripcion))
 
 if __name__ == "__main__":
     app = App()
