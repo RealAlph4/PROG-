@@ -8,7 +8,7 @@ import os
 from graficos import GraficosFrame
 
 from crud.cliente_crud import crear_cliente, obtener_clientes, actualizar_cliente, eliminar_cliente
-from crud.ingrediente_crud import crear_ingrediente, obtener_ingredientes
+from crud.ingrediente_crud import crear_ingrediente, obtener_ingredientes, verificar_y_obtener_faltantes
 from crud.menu_crud import crear_menu, obtener_menus
 from crud.pedido_crud import crear_pedido, obtener_pedidos, generar_boleta_pdf_from_db_pedido, eliminar_pedido_por_id
 
@@ -213,12 +213,38 @@ class App(ctk.CTk):
             cant = int(self.entry_cant.get())
             if cant <= 0: raise ValueError
         except (ValueError, AssertionError): messagebox.showerror("Error", "Cantidad inválida"); return
+        
         menu = self.menus_cb[self.combo_menus.current()]
+        
+        carrito_temporal = self.carrito[:]
+        item_existente_idx = -1
+        for i, item in enumerate(carrito_temporal):
+            if item[0] == menu.id:
+                item_existente_idx = i
+                break
+        
+        if item_existente_idx != -1:
+            _, cant_existente = carrito_temporal.pop(item_existente_idx)
+            carrito_temporal.append((menu.id, cant + cant_existente))
+        else:
+            carrito_temporal.append((menu.id, cant))
+
+        # Verificación de ingredientes
+        ingredientes_faltantes = verificar_y_obtener_faltantes(carrito_temporal)
+        if ingredientes_faltantes:
+            msg = "No hay suficientes ingredientes para añadir este plato:\n\n- " + "\n- ".join(ingredientes_faltantes)
+            messagebox.showerror("Stock Insuficiente", msg)
+            return
+
+        # Actualización del carrito real
         item_existente = next((item for item in self.carrito if item[0] == menu.id), None)
         if item_existente:
-            self.carrito.remove(item_existente); cant += item_existente[1]
+            self.carrito.remove(item_existente)
+            cant += item_existente[1]
+        
         self.carrito.append((menu.id, cant))
         self.actualizar_tree_items(); self.entry_cant.delete(0, 'end'); self.actualizar_total()
+
     def actualizar_tree_items(self):
         for i in self.tree_items.get_children(): self.tree_items.delete(i)
         menus_data = {m.id: m for m in self.menus_cb}
@@ -234,9 +260,16 @@ class App(ctk.CTk):
     def guardar_pedido(self):
         if not self.combo_clientes.get(): messagebox.showwarning("Aviso", "Seleccione un cliente"); return
         if not self.carrito: messagebox.showwarning("Aviso", "Añada items al pedido"); return
+        
         cli = self.clientes_cb[self.combo_clientes.current()]
-        crear_pedido(cli.id, self.carrito); messagebox.showinfo("Éxito", "Pedido guardado correctamente.")
-        self.carrito.clear(); self.actualizar_tree_items(); self.actualizar_total(); self.ver_pedidos()
+        try:
+            crear_pedido(cli.id, self.carrito)
+            messagebox.showinfo("Éxito", "Pedido guardado correctamente.")
+            self.carrito.clear(); self.actualizar_tree_items(); self.actualizar_total(); self.ver_pedidos()
+            self.cargar_ingredientes() # Actualiza vista de ingredientes
+        except Exception as e:
+            messagebox.showerror("Error al guardar", f"No se pudo completar el pedido:\n{e}")
+
     def seleccionar_pedido_evento(self, event):
         seleccion = self.tree_pedidos.selection()
         if not seleccion: self.pedido_seleccionado_id = None; return
@@ -261,11 +294,16 @@ class App(ctk.CTk):
         if self.pedido_seleccionado_id is None:
             messagebox.showwarning("Sin selección", "Por favor, seleccione un pedido del historial para eliminar.")
             return
+        
+        # He eliminado el cuadro de diálogo de confirmación de esta sección
+        
         try:
             if eliminar_pedido_por_id(self.pedido_seleccionado_id):
+                messagebox.showinfo("Éxito", "Pedido eliminado y stock de ingredientes restaurado.")
                 self.ver_pedidos()
+                self.cargar_ingredientes() # Actualizar la vista de ingredientes
             else:
-                messagebox.showerror("Error", "No se pudo eliminar el pedido. Es posible que ya no exista.")
+                messagebox.showerror("Error", "No se pudo eliminar el pedido.")
         except Exception as e:
             messagebox.showerror("Error Inesperado", f"Ocurrió un error al eliminar el pedido: {e}")
 
