@@ -1,4 +1,3 @@
-
 from models import Pedido, Menu
 from database import Session
 from datetime import datetime
@@ -29,13 +28,14 @@ def crear_pedido(cliente_id, items:list[tuple[int,int]]):
     session.add(nuevo)
     session.commit()
 
-    # generar boleta
-    session.refresh(nuevo)
-    generar_boleta_pdf_from_db_pedido(nuevo.id)
+    # <<< CAMBIO: HEMOS ELIMINADO LAS SIGUIENTES LÍNEAS >>>
+    # session.refresh(nuevo)
+    # generar_boleta_pdf_from_db_pedido(nuevo.id)
 
     session.close()
     return nuevo
 
+# El resto del archivo no necesita cambios
 def generar_boleta_pdf_from_db_pedido(pedido_id:int):
     session = Session()
     pedido = session.query(Pedido).get(pedido_id)
@@ -52,14 +52,20 @@ def generar_boleta_pdf_from_db_pedido(pedido_id:int):
         name_part, rest = line.split(' x')
         cantidad, _ = rest.split(' -> ')
         menu = session.query(Menu).filter_by(nombre=name_part).first()
+        if not menu: continue # Ignorar si el menú no se encuentra
         item = OBJ()
         item.menu = menu
         item.cantidad = int(cantidad)
         item.calcular_subtotal = lambda m=menu, c=int(cantidad): m.precio * c
         pedido_obj.items.append(item)
+        
+    nombre_archivo = f"boletas/boleta_{pedido_id}.pdf"
     from pdf_generator import generar_boleta_pdf
-    generar_boleta_pdf(pedido_obj, f"boletas/boleta_{pedido_id}.pdf")
+    generar_boleta_pdf(pedido_obj, nombre_archivo)
     session.close()
+    
+    # <<< NUEVO: Devolvemos el nombre del archivo para mostrarlo al usuario >>>
+    return nombre_archivo
 
 def obtener_pedidos():
     session = Session()
