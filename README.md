@@ -1,109 +1,68 @@
-Características Principales:
+# Sistema de Gestión de Restaurante
 
-    Gestión CRUD completa: Permite Crear, Leer, Actualizar y Eliminar (CRUD) las entidades principales del negocio: Clientes, Menús, Ingredientes y Pedidos.
+Este proyecto es una aplicación de escritorio desarrollada en Python como parte de la evaluación del curso de Programación II. El sistema está diseñado para facilitar la administración de un restaurante, permitiendo gestionar clientes, menús, ingredientes y pedidos de una forma centralizada e intuitiva.
 
-    Control de Inventario Automático: Descuenta los ingredientes del stock en tiempo real al registrar un pedido y los repone si un pedido es eliminado.
+## Características Principales
 
-    Interfaz Gráfica Moderna: Desarrollada con customtkinter para una experiencia de usuario amigable e intuitiva.
+  * **Gestión CRUD Completa:** Permite crear, leer, actualizar y eliminar Clientes, Ingredientes y Menús de forma sencilla.
+  * **Control de Inventario en Tiempo Real:** El stock de ingredientes se descuenta automáticamente al registrar un pedido y se repone si el pedido es eliminado, evitando ventas de productos sin stock.
+  * **Generación de Boletas en PDF:** Crea un recibo detallado en formato PDF para cualquier venta realizada, que se almacena en la carpeta `boletas/`.
+  * **Visualización de Datos:** Utiliza `matplotlib` para generar gráficos estadísticos que muestran los platos más vendidos, ayudando a la toma de decisiones del negocio.
+  * **Interfaz Gráfica Intuitiva:** Desarrollada con `customtkinter` para ofrecer una experiencia de usuario moderna y fácil de usar.
 
-    Generación de Boletas: Crea un recibo detallado en formato PDF para cada venta realizada.
+## Tecnologías Utilizadas
 
-    Visualización de Datos: Genera gráficos estadísticos para analizar información clave, como los platos más vendidos.
+  * **Lenguaje:** Python 3.10+
+  * **Interfaz Gráfica:** `customtkinter`, `tkinter`
+  * **Base de Datos y ORM:** SQLite a través de `SQLAlchemy`
+  * **Generación de Gráficos:** `matplotlib`
+  * **Generación de PDF:** `fpdf`
 
-Tecnologías Utilizadas:
+## Instalación y Puesta en Marcha
 
-    Lenguaje: Python
+Sigue estos pasos para ejecutar el proyecto en tu entorno local.
 
-    Base de Datos: SQLite con el ORM SQLAlchemy.
+### 1\. Prerrequisitos
 
-    Interfaz Gráfica: customtkinter y tkinter.
+  * Tener instalado Python 3.10 o una versión superior.
+  * Contar con un gestor de paquetes como `pip`.
 
-    Generación de Gráficos: matplotlib.
+### 2\. Instalación de Dependencias
 
-    Generación de PDF: fpdf.
+Abre una terminal o consola en la carpeta raíz del proyecto y ejecuta el siguiente comando para instalar todas las bibliotecas necesarias:
 
-2. Guía de Uso
+```bash
+pip install customtkinter SQLAlchemy matplotlib fpdf
+```
 
-Requisitos Previos
+### 3\. Ejecutar la Aplicación
 
-Asegúrate de tener Python 3.10 o superior instalado. Luego, instala las bibliotecas necesarias ejecutando el siguiente comando en tu terminal:
-Bash
+Una vez instaladas las dependencias, ejecuta el siguiente comando en la terminal para iniciar el programa:
 
-pip install customtkinter fpdf matplotlib SQLAlchemy
+```bash
+python app.py
+```
 
-Paso 1: Iniciar la Aplicación
+La primera vez que se ejecute, se creará automáticamente el archivo de la base de datos `restaurante.db`.
 
-    Navega hasta la carpeta raíz del proyecto (ORM_clientes/).
+## Guía de Uso
 
-    Ejecuta el siguiente comando para iniciar la aplicación:
-    Bash
+1.  **Añadir Ingredientes:** Ve a la pestaña **"Ingredientes"** para registrar los productos de tu inventario con su nombre, tipo, cantidad inicial y unidad de medida.
 
-    python app.py
+2.  **Crear Menús:** En la pestaña **"Menús"**, crea los platos que ofrece el restaurante. Asigna un nombre, descripción, precio y construye su receta añadiendo los ingredientes previamente registrados.
 
-    La primera vez que se ejecute, se creará automáticamente el archivo de base de datos restaurante.db.
+3.  **Registrar Clientes:** En la pestaña **"Clientes"**, añade a tus clientes ingresando su nombre y correo electrónico.
 
-Paso 2: Gestión de Ingredientes
+4.  **Crear un Pedido:**
 
-Es el primer paso para configurar el restaurante.
+      * Dirígete a la pestaña **"Pedidos"**.
+      * Selecciona un cliente y un menú de las listas desplegables.
+      * Indica la cantidad y haz clic en **"Añadir Item"**. El sistema validará que haya stock suficiente.
+      * Cuando el pedido esté completo, presiona **"Guardar Pedido"**. El stock se descontará automáticamente.
 
-    Ve a la pestaña "Ingredientes".
+5.  **Gestionar Pedidos y Reportes:**
 
-    Rellena los campos: "Nombre", "Tipo", "Cantidad" y "Unidad".
-
-    Haz clic en "Agregar Ingrediente". El nuevo ingrediente aparecerá en la tabla inferior.
-
-    Repite el proceso para todos los ingredientes de tu inventario.
-
-Paso 3: Gestión de Menús
-
-Con los ingredientes ya cargados, puedes crear los platos.
-
-    Ve a la pestaña "Menús".
-
-    Ingresa el "Nombre del plato", "Descripción" y "Precio".
-
-    En la sección de recetas, selecciona un ingrediente del menú desplegable, define la cantidad necesaria para el plato y haz clic en "Añadir a Receta".
-
-    Repite el paso anterior para todos los ingredientes del plato.
-
-    Una vez que la receta esté completa, haz clic en "Crear Menú".
-
-Paso 4: Gestión de Clientes
-
-Registra a tus clientes antes de tomarles un pedido.
-
-    Ve a la pestaña "Clientes".
-
-    Ingresa el "Nombre" y "Correo" del cliente.
-
-    Haz clic en "Agregar Cliente".
-
-Paso 5: Crear un Pedido
-
-Este es el flujo de venta principal.
-
-    Ve a la pestaña "Pedidos".
-
-    Selecciona un cliente del menú desplegable "Cliente".
-
-    Selecciona un plato del menú desplegable "Menú", indica la cantidad y haz clic en "Añadir Item". El sistema verificará el stock antes de agregarlo.
-
-    El producto se añadirá a la tabla del pedido actual. Puedes añadir más productos repitiendo el paso anterior.
-
-    Cuando el pedido esté completo, haz clic en "Guardar Pedido". El stock de ingredientes se descontará automáticamente.
-
-Paso 6: Administrar Pedidos y Boletas
-
-En la misma pestaña de "Pedidos", puedes ver el "Historial de Pedidos".
-
-    Generar Boleta: Selecciona un pedido del historial y haz clic en "Generar Boleta Seleccionada". Se creará un archivo PDF en la carpeta boletas/.
-
-    Eliminar Pedido: Selecciona un pedido y haz clic en "Borrar Seleccionado". El pedido se eliminará y los ingredientes utilizados se devolverán al stock.
-
-Paso 7: Visualizar Estadísticas
-
-    Ve a la pestaña "Gráficos".
-
-    Haz clic en "Generar Gráfico de Platos Más Vendidos".
-
-    El sistema analizará el historial de pedidos y mostrará un gráfico de barras con los 10 platos más populares.
+      * En el **"Historial de Pedidos"**, puedes seleccionar cualquier pedido para:
+          * **Generar su boleta en PDF** con el botón correspondiente.
+          * **Eliminarlo**, lo que devolverá los ingredientes al inventario.
+      * En la pestaña **"Gráficos"**, puedes generar una visualización de los platos más vendidos.
