@@ -35,15 +35,22 @@ Abre una terminal o consola en la carpeta raíz del proyecto y ejecuta el siguie
 pip install customtkinter SQLAlchemy matplotlib fpdf
 ```
 
-### 3\. Ejecutar la Aplicación
+### 3\. Ejecutar la Base de Datos
 
-Una vez instaladas las dependencias, ejecuta el siguiente comando en la terminal para iniciar el programa:
+Una vez instaladas las dependencias, ejecuta el siguiente comando en la terminal para iniciar la base de datos:
+
+```bash
+python main.py
+```
+La primera vez que se ejecute, se creará automáticamente el archivo de la base de datos `restaurante.db`.
+
+### 4\. Ejecutar la Aplicación
+
+Ejecuta el siguiente comando en la terminal para iniciar el programa:
 
 ```bash
 python app.py
 ```
-
-La primera vez que se ejecute, se creará automáticamente el archivo de la base de datos `restaurante.db`.
 
 ## Guía de Uso
 
@@ -53,14 +60,14 @@ La primera vez que se ejecute, se creará automáticamente el archivo de la base
 
 3.  **Registrar Clientes:** En la pestaña **"Clientes"**, añade a tus clientes ingresando su nombre y correo electrónico.
 
-4.  **Crear un Pedido:**
+5.  **Crear un Pedido:**
 
       * Dirígete a la pestaña **"Pedidos"**.
       * Selecciona un cliente y un menú de las listas desplegables.
       * Indica la cantidad y haz clic en **"Añadir Item"**. El sistema validará que haya stock suficiente.
       * Cuando el pedido esté completo, presiona **"Guardar Pedido"**. El stock se descontará automáticamente.
 
-5.  **Gestionar Pedidos y Reportes:**
+6.  **Gestionar Pedidos y Reportes:**
 
       * En el **"Historial de Pedidos"**, puedes seleccionar cualquier pedido para:
           * **Generar su boleta en PDF** con el botón correspondiente.
